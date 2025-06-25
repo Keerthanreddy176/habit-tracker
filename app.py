@@ -4,21 +4,34 @@ from datetime import date
 import os
 import altair as alt
 
+# Configure page
 st.set_page_config(page_title="Habit Tracker", layout="wide")
 st.title("🧠 Personal Habit Tracker")
 
+# --- User Login ---
+st.sidebar.header("👤 User Login")
+username = st.sidebar.text_input("Enter your name")
+
+if not username:
+    st.warning("Please enter your name to access your habit tracker.")
+    st.stop()
+
+# Define user-specific CSV file
+user_file = f"habits_{username}.csv"
+
 # Load or initialize data
-csv_file = "habits.csv"
-if os.path.exists(csv_file):
-    df = pd.read_csv(csv_file)
+if os.path.exists(user_file):
+    df = pd.read_csv(user_file)
 else:
     df = pd.DataFrame(columns=["Date", "Habit", "Status"])
 
-# Sidebar filter
+# --- Sidebar Filter ---
 st.sidebar.header("🔍 Filter")
-habit_filter = st.sidebar.selectbox("Select Habit", ["All"] + sorted(df["Habit"].unique()), index=0)
+habit_filter = st.sidebar.selectbox(
+    "Select Habit", ["All"] + sorted(df["Habit"].unique()), index=0
+)
 
-# Form input
+# --- Form Input ---
 with st.form("habit_form"):
     st.subheader("➕ Add New Habit")
     habit = st.text_input("Habit Name")
@@ -27,21 +40,27 @@ with st.form("habit_form"):
     if submitted and habit:
         new_entry = {"Date": date.today(), "Habit": habit, "Status": status}
         df = pd.concat([df, pd.DataFrame([new_entry])], ignore_index=True)
-        df.to_csv(csv_file, index=False)
-        st.success(f"Logged: {habit} - {status}")
+        df.to_csv(user_file, index=False)
+        st.success(f"🎉 Logged: {habit} - {status}")
+        st.balloons()
 
-# Filtered view
+# --- Filtered View ---
+filtered_df = df.copy()
 if habit_filter != "All":
-    df = df[df["Habit"] == habit_filter]
+    filtered_df = filtered_df[filtered_df["Habit"] == habit_filter]
 
-# Display data
+# --- Display Data ---
 st.subheader("📅 Habit Log")
-st.dataframe(df, use_container_width=True)
+if not filtered_df.empty:
+    st.dataframe(filtered_df, use_container_width=True)
+    st.metric("📈 Total Habits Logged", len(filtered_df))
+else:
+    st.info("No entries to show for this selection yet.")
 
-# Chart
-if not df.empty:
+# --- Chart ---
+if not filtered_df.empty:
     st.subheader("📊 Habit Completion Chart")
-    chart = alt.Chart(df).mark_bar().encode(
+    chart = alt.Chart(filtered_df).mark_bar().encode(
         x="Habit:N",
         y="count():Q",
         color="Status:N"
