@@ -1,68 +1,98 @@
 import streamlit as st
 import pandas as pd
-from datetime import date
-import os
 import altair as alt
+from datetime import date, timedelta
+import os
 
-# Configure page
+# -- Setup --
 st.set_page_config(page_title="Habit Tracker", layout="wide")
 st.title("🧠 Personal Habit Tracker")
 
-# --- User Login ---
-st.sidebar.header("👤 User Login")
-username = st.sidebar.text_input("Enter your name")
+# -- Sidebar Login --
+with st.sidebar:
+    st.header("👤 User Login")
+    username = st.text_input("Enter your name")
+    dark_mode = st.toggle("🌙 Dark Mode", value=True)
 
 if not username:
-    st.warning("Please enter your name to access your habit tracker.")
+    st.warning("Enter your name to continue.")
     st.stop()
 
-# Define user-specific CSV file
+# -- File Handling --
 user_file = f"habits_{username}.csv"
-
-# Load or initialize data
 if os.path.exists(user_file):
-    df = pd.read_csv(user_file)
+    df = pd.read_csv(user_file, parse_dates=["Date"])
 else:
     df = pd.DataFrame(columns=["Date", "Habit", "Status"])
+    df.to_csv(user_file, index=False)
 
-# --- Sidebar Filter ---
-st.sidebar.header("🔍 Filter")
-habit_filter = st.sidebar.selectbox(
-    "Select Habit", ["All"] + sorted(df["Habit"].unique()), index=0
-)
-
-# --- Form Input ---
+# -- Add New Habit Entry --
 with st.form("habit_form"):
     st.subheader("➕ Add New Habit")
-    habit = st.text_input("Habit Name")
-    status = st.radio("Status", ["Done", "Not Done"])
-    submitted = st.form_submit_button("Add Entry")
+    col1, col2 = st.columns(2)
+    with col1:
+        habit = st.text_input("Habit")
+    with col2:
+        status = st.radio("Status", ["Done", "Not Done"], horizontal=True)
+    submitted = st.form_submit_button("Log Entry")
+
     if submitted and habit:
-        new_entry = {"Date": date.today(), "Habit": habit, "Status": status}
+        new_entry = {"Date": date.today(), "Habit": habit.strip().title(), "Status": status}
         df = pd.concat([df, pd.DataFrame([new_entry])], ignore_index=True)
         df.to_csv(user_file, index=False)
-        st.success(f"🎉 Logged: {habit} - {status}")
+        st.success(f"✅ Logged: {habit} - {status}")
         st.balloons()
 
-# --- Filtered View ---
-filtered_df = df.copy()
-if habit_filter != "All":
-    filtered_df = filtered_df[filtered_df["Habit"] == habit_filter]
+# -- Filters --
+st.sidebar.header("🔍 Filters")
+habit_filter = st.sidebar.selectbox("Filter by Habit", ["All"] + sorted(df["Habit"].unique()))
+filtered_df = df if habit_filter == "All" else df[df["Habit"] == habit_filter]
 
-# --- Display Data ---
-st.subheader("📅 Habit Log")
-if not filtered_df.empty:
-    st.dataframe(filtered_df, use_container_width=True)
-    st.metric("📈 Total Habits Logged", len(filtered_df))
-else:
-    st.info("No entries to show for this selection yet.")
+# -- Tabbed Interface --
+tab1, tab2, tab3 = st.tabs(["📅 Habit Log", "📈 Insights", "⏳ Streaks"])
 
-# --- Chart ---
-if not filtered_df.empty:
-    st.subheader("📊 Habit Completion Chart")
-    chart = alt.Chart(filtered_df).mark_bar().encode(
-        x="Habit:N",
-        y="count():Q",
-        color="Status:N"
-    ).properties(width=600)
-    st.altair_chart(chart, use_container_width=True)
+# -- 📅 Tab 1: Log Display --
+with tab1:
+    st.subheader("📋 Habit History")
+    st.dataframe(filtered_df.sort_values(by="Date", ascending=False), use_container_width=True)
+    if not filtered_df.empty:
+        st.metric("Total Entries", len(filtered_df))
+        st.metric("Unique Habits", filtered_df['Habit'].nunique())
+    else:
+        st.info("No entries yet. Start logging habits!")
+
+# -- 📈 Tab 2: Visual Insights --
+with tab2:
+    if not filtered_df.empty:
+        chart = alt.Chart(filtered_df).mark_bar().encode(
+            x="Habit:N",
+            y="count():Q",
+            color="Status:N"
+        ).properties(height=400)
+        st.altair_chart(chart, use_container_width=True)
+
+        # Pie chart
+        pie_data = filtered_df['Status'].value_counts().reset_index()
+        pie_data.columns = ['Status', 'Count']
+        pie_chart = alt.Chart(pie_data).mark_arc().encode(
+            theta="Count:Q",
+            color="Status:N",
+            tooltip=["Status", "Count"]
+        )
+        st.altair_chart(pie_chart, use_container_width=True)
+# -- ⏳ Tab 3: Streaks --
+with tab3:
+    st.subheader("🔥 Weekly Habit Streaks")
+    if not filtered_df.empty:
+        streak_df = filtered_df.copy()
+        streak_df["Date"] = pd.to_datetime(streak_df["Date"], errors='coerce')
+        streak_df["Week"] = streak_df["Date"].dt.to_period("W").apply(lambda r: r.start_time)
+        streak_count = streak_df.groupby(["Week", "Habit", "Status"]).size().unstack(fill_value=0).reset_index()
+        st.dataframe(streak_count, use_container_width=True)
+    else:
+        st.info("Streak data will show once you log more entries.")
+
+        st.info("Streak data will show once you log more entries.")
+
+# -- Footer --
+st.caption("🛠️ Made with ❤️ in Streamlit")
