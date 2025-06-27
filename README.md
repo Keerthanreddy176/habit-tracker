@@ -2,7 +2,6 @@
 
 A simple, interactive habit tracking web app built with **Streamlit**. Users can log daily habits, monitor progress with charts, and track weekly streaks — all stored in local CSV files.
 
----
 
 ## 🚀 Features
 
