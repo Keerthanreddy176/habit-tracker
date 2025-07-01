@@ -74,3 +74,4 @@ This project is licensed under the MIT License.
 
 **Keerthan Reddy**
 [GitLab Profile](https://gitlab.com/keerthanreddy1706)
+[linkedin profile](https://www.linkedin.com/in/keerthan-reddy-71a5b5370/)
